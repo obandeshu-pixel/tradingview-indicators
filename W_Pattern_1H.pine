@@ -1,0 +1,190 @@
+//@version=6
+indicator("W Bottom / W Top [1H]", overlay=true,
+          max_lines_count=500, max_labels_count=500)
+
+// ── Inputs ──────────────────────────────────────────────────────────────────
+int   leftLen    = input.int(5,    "ピボット左バー数",              minval=2,    maxval=20)
+int   rightLen   = input.int(5,    "ピボット右バー数",              minval=2,    maxval=20)
+float minDevPct  = input.float(-1.0, "安値/高値の最小変化率 (%) ※負=わずかな逆方向を許容",
+                               minval=-10.0, maxval=10.0, step=0.5)
+float maxDevPct  = input.float(5.0,  "安値/高値の最大乖離率 (%)",
+                               minval=0.1,  maxval=20.0, step=0.5)
+color bullCol    = input.color(color.new(#00c853, 0), "買いシグナル色")
+color bearCol    = input.color(color.new(#d50000, 0), "売りシグナル色")
+
+// ── 1時間足チェック ──────────────────────────────────────────────────────────
+if barstate.islast and timeframe.period != "60"
+    label.new(bar_index, high,
+              "⚠️ このインジケーターは1時間足専用です（現在: " + timeframe.period + "分足）",
+              style=label.style_label_left,
+              color=color.orange, textcolor=color.white)
+
+// ── ピボット検出 ─────────────────────────────────────────────────────────────
+float pivLow  = ta.pivotlow(low,  leftLen, rightLen)
+float pivHigh = ta.pivothigh(high, leftLen, rightLen)
+int   pivBar  = bar_index - rightLen
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W ボトム ステートマシン
+//   State 0: idle
+//   State 1: L1 確定済み（ネックライン待ち）
+//   State 2: L1 + ネックライン確定済み（L2 待ち）
+//   State 3: L1 + ネックライン + L2 確定済み（ブレイク待ち）
+//
+// L2 判定（devPct = (L2 - L1) / L1 * 100）:
+//   minDevPct ≤ devPct ≤ maxDevPct → State 3（切り上がり傾向 ＋ 乖離OK）
+//   devPct > maxDevPct             → スキップ（乖離しすぎ）
+//   -(maxDevPct) ≤ devPct < minDevPct → スキップ（保留）
+//   devPct < -(maxDevPct)          → リセット（明確な安値切り下がり）
+// ══════════════════════════════════════════════════════════════════════════════
+var int   wb_st       = 0
+var float wb_l1       = na
+var int   wb_l1_bar   = na
+var float wb_neck     = na
+var int   wb_neck_bar = na
+var float wb_l2       = na
+var int   wb_l2_bar   = na
+
+if not na(pivLow)
+    if wb_st <= 1
+        wb_l1       := pivLow
+        wb_l1_bar   := pivBar
+        wb_neck     := na
+        wb_neck_bar := na
+        wb_st       := 1
+    else if wb_st == 2 and pivBar > wb_neck_bar
+        float wbDev = (pivLow - wb_l1) / wb_l1 * 100
+        if wbDev >= minDevPct and wbDev <= maxDevPct
+            // 切り上がり傾向 ＋ 乖離OK → L2 確定
+            wb_l2       := pivLow
+            wb_l2_bar   := pivBar
+            wb_st       := 3
+        else if wbDev < -maxDevPct
+            // 明確な安値切り下がり → パターン破綻、L1 として再スタート
+            wb_l1       := pivLow
+            wb_l1_bar   := pivBar
+            wb_neck     := na
+            wb_neck_bar := na
+            wb_st       := 1
+        // else: 保留（State 2 継続）
+    else if wb_st == 3 and pivLow < wb_l2
+        wb_l1       := pivLow
+        wb_l1_bar   := pivBar
+        wb_neck     := na
+        wb_neck_bar := na
+        wb_l2       := na
+        wb_l2_bar   := na
+        wb_st       := 1
+
+if not na(pivHigh)
+    if wb_st == 1 and pivBar > wb_l1_bar
+        wb_neck     := pivHigh
+        wb_neck_bar := pivBar
+        wb_st       := 2
+    else if wb_st == 2 and pivBar > wb_l1_bar and pivHigh > wb_neck
+        wb_neck     := pivHigh
+        wb_neck_bar := pivBar
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W トップ ステートマシン
+//
+// H2 判定（devPct = (H1 - H2) / H1 * 100）:
+//   minDevPct ≤ devPct ≤ maxDevPct → State 3（切り下がり傾向 ＋ 乖離OK）
+//   devPct > maxDevPct             → スキップ（乖離しすぎ）
+//   -(maxDevPct) ≤ devPct < minDevPct → スキップ（保留）
+//   devPct < -(maxDevPct)          → リセット（明確な高値切り上がり）
+// ══════════════════════════════════════════════════════════════════════════════
+var int   wt_st       = 0
+var float wt_h1       = na
+var int   wt_h1_bar   = na
+var float wt_neck     = na
+var int   wt_neck_bar = na
+var float wt_h2       = na
+var int   wt_h2_bar   = na
+
+if not na(pivHigh)
+    if wt_st <= 1
+        wt_h1       := pivHigh
+        wt_h1_bar   := pivBar
+        wt_neck     := na
+        wt_neck_bar := na
+        wt_st       := 1
+    else if wt_st == 2 and pivBar > wt_neck_bar
+        float wtDev = (wt_h1 - pivHigh) / wt_h1 * 100
+        if wtDev >= minDevPct and wtDev <= maxDevPct
+            wt_h2       := pivHigh
+            wt_h2_bar   := pivBar
+            wt_st       := 3
+        else if wtDev < -maxDevPct
+            wt_h1       := pivHigh
+            wt_h1_bar   := pivBar
+            wt_neck     := na
+            wt_neck_bar := na
+            wt_st       := 1
+    else if wt_st == 3 and pivHigh > wt_h2
+        wt_h1       := pivHigh
+        wt_h1_bar   := pivBar
+        wt_neck     := na
+        wt_neck_bar := na
+        wt_h2       := na
+        wt_h2_bar   := na
+        wt_st       := 1
+
+if not na(pivLow)
+    if wt_st == 1 and pivBar > wt_h1_bar
+        wt_neck     := pivLow
+        wt_neck_bar := pivBar
+        wt_st       := 2
+    else if wt_st == 2 and pivBar > wt_h1_bar and pivLow < wt_neck
+        wt_neck     := pivLow
+        wt_neck_bar := pivBar
+
+// ══════════════════════════════════════════════════════════════════════════════
+// シグナル検出
+// ta.crossover は「前バーが以下→現バーが以上」という2バーにまたがる条件のため、
+// ピボット確定の遅延（rightLen バー）中に価格が抜けると検知できない。
+// close > wb_neck を直接チェックし、シグナル発火後に State をリセットすることで
+// 1 回だけ発火させる。
+// ══════════════════════════════════════════════════════════════════════════════
+bool wbSignal = wb_st == 3 and close > wb_neck
+bool wtSignal = wt_st == 3 and close < wt_neck
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W ボトム 描画
+// ══════════════════════════════════════════════════════════════════════════════
+if wbSignal
+    line.new(wb_l1_bar,   wb_l1,   wb_neck_bar, wb_neck, color=bullCol, width=2)
+    line.new(wb_neck_bar, wb_neck, wb_l2_bar,   wb_l2,  color=bullCol, width=2)
+    line.new(wb_l1_bar, wb_neck, bar_index, wb_neck,
+             color=color.new(bullCol, 40), style=line.style_dashed, width=1)
+    label.new(bar_index, low,
+              "▲ W Bottom\nBUY",
+              style=label.style_label_up,
+              color=bullCol, textcolor=color.white, size=size.normal)
+    wb_st    := 0
+    wb_l1    := na
+    wb_neck  := na
+    wb_l2    := na
+
+// ══════════════════════════════════════════════════════════════════════════════
+// W トップ 描画
+// ══════════════════════════════════════════════════════════════════════════════
+if wtSignal
+    line.new(wt_h1_bar,   wt_h1,   wt_neck_bar, wt_neck, color=bearCol, width=2)
+    line.new(wt_neck_bar, wt_neck, wt_h2_bar,   wt_h2,  color=bearCol, width=2)
+    line.new(wt_h1_bar, wt_neck, bar_index, wt_neck,
+             color=color.new(bearCol, 40), style=line.style_dashed, width=1)
+    label.new(bar_index, high,
+              "▼ W Top\nSELL",
+              style=label.style_label_down,
+              color=bearCol, textcolor=color.white, size=size.normal)
+    wt_st    := 0
+    wt_h1    := na
+    wt_neck  := na
+    wt_h2    := na
+
+// ── plotshape（矢印）─────────────────────────────────────────────────────────
+plotshape(wbSignal, "Wボトム買い", shape.triangleup,
+          location.belowbar, bullCol, size=size.small)
+plotshape(wtSignal, "Wトップ売り", shape.triangledown,
+          location.abovebar, bearCol, size=size.small)
