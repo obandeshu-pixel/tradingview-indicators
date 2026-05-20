@@ -184,13 +184,11 @@ if not na(pivHigh)
 //   上昇トレンド: HH（pivH1 > pivH2）AND HL（pivL1 > pivL2）
 //   下降トレンド: LH（pivH1 < pivH2）AND LL（pivL1 < pivL2）
 // ══════════════════════════════════════════════════════════════════════════════
-bool wb_pre_uptrend = not na(wb_snap_pivH1) and not na(wb_snap_pivH2) and
-                      not na(wb_snap_pivL1) and not na(wb_snap_pivL2) and
-                      wb_snap_pivH1 > wb_snap_pivH2 and wb_snap_pivL1 > wb_snap_pivL2
+bool wb_snap_ready = not na(wb_snap_pivH1) and not na(wb_snap_pivH2) and not na(wb_snap_pivL1) and not na(wb_snap_pivL2)
+bool wb_pre_uptrend = wb_snap_ready and wb_snap_pivH1 > wb_snap_pivH2 and wb_snap_pivL1 > wb_snap_pivL2
 
-bool wt_pre_downtrend = not na(wt_snap_pivH1) and not na(wt_snap_pivH2) and
-                        not na(wt_snap_pivL1) and not na(wt_snap_pivL2) and
-                        wt_snap_pivH1 < wt_snap_pivH2 and wt_snap_pivL1 < wt_snap_pivL2
+bool wt_snap_ready = not na(wt_snap_pivH1) and not na(wt_snap_pivH2) and not na(wt_snap_pivL1) and not na(wt_snap_pivL2)
+bool wt_pre_downtrend = wt_snap_ready and wt_snap_pivH1 < wt_snap_pivH2 and wt_snap_pivL1 < wt_snap_pivL2
 
 // ══════════════════════════════════════════════════════════════════════════════
 // シグナル検出（トレンドフィルター適用）
