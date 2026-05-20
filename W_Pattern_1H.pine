@@ -9,7 +9,9 @@ float minDevPct  = input.float(-1.0, "安値/高値の最小変化率 (%) ※負
                                minval=-10.0, maxval=10.0, step=0.5)
 float maxDevPct  = input.float(5.0,  "安値/高値の最大乖離率 (%)",
                                minval=0.1,  maxval=20.0, step=0.5)
-bool  useTrendFilter = input.bool(true, "ダウ理論トレンドフィルター（上昇中Wボトム/下降中Wトップを非表示）")
+bool  useTrendFilter   = input.bool(true, "ダウ理論トレンドフィルター（上昇中Wボトム/下降中Wトップを非表示）")
+float trendStrengthPct = input.float(1.0, "トレンド強度しきい値 (%) ※HH/HL差がこれ以上で初めてトレンドと判定",
+                                     minval=0.0, maxval=10.0, step=0.1)
 color bullCol    = input.color(color.new(#00c853, 0), "買いシグナル色")
 color bearCol    = input.color(color.new(#d50000, 0), "売りシグナル色")
 
@@ -184,11 +186,16 @@ if not na(pivHigh)
 //   上昇トレンド: HH（pivH1 > pivH2）AND HL（pivL1 > pivL2）
 //   下降トレンド: LH（pivH1 < pivH2）AND LL（pivL1 < pivL2）
 // ══════════════════════════════════════════════════════════════════════════════
-bool wb_snap_ready = not na(wb_snap_pivH1) and not na(wb_snap_pivH2) and not na(wb_snap_pivL1) and not na(wb_snap_pivL2)
-bool wb_pre_uptrend = wb_snap_ready and wb_snap_pivH1 > wb_snap_pivH2 and wb_snap_pivL1 > wb_snap_pivL2
+// 強度判定: 直近2本のピボット差が trendStrengthPct% 以上で初めてトレンドと判定
+bool  wb_snap_ready  = not na(wb_snap_pivH1) and not na(wb_snap_pivH2) and not na(wb_snap_pivL1) and not na(wb_snap_pivL2)
+float wb_high_chg    = wb_snap_ready ? (wb_snap_pivH1 - wb_snap_pivH2) / wb_snap_pivH2 * 100 : 0.0
+float wb_low_chg     = wb_snap_ready ? (wb_snap_pivL1 - wb_snap_pivL2) / wb_snap_pivL2 * 100 : 0.0
+bool  wb_pre_uptrend = wb_snap_ready and wb_high_chg >= trendStrengthPct and wb_low_chg >= trendStrengthPct
 
-bool wt_snap_ready = not na(wt_snap_pivH1) and not na(wt_snap_pivH2) and not na(wt_snap_pivL1) and not na(wt_snap_pivL2)
-bool wt_pre_downtrend = wt_snap_ready and wt_snap_pivH1 < wt_snap_pivH2 and wt_snap_pivL1 < wt_snap_pivL2
+bool  wt_snap_ready    = not na(wt_snap_pivH1) and not na(wt_snap_pivH2) and not na(wt_snap_pivL1) and not na(wt_snap_pivL2)
+float wt_high_chg      = wt_snap_ready ? (wt_snap_pivH1 - wt_snap_pivH2) / wt_snap_pivH2 * 100 : 0.0
+float wt_low_chg       = wt_snap_ready ? (wt_snap_pivL1 - wt_snap_pivL2) / wt_snap_pivL2 * 100 : 0.0
+bool  wt_pre_downtrend = wt_snap_ready and wt_high_chg <= -trendStrengthPct and wt_low_chg <= -trendStrengthPct
 
 // ══════════════════════════════════════════════════════════════════════════════
 // シグナル検出（トレンドフィルター適用）
