@@ -96,14 +96,34 @@ if not na(pivLow)
         wb_l2_bar   := na
         wb_st       := 1
 
+// ネックライン候補は「L1直前の戻り高値（wb_snap_pivH1）」を越えないこと（LH構造維持）
+// 越えた場合は上方ブレイク（BoS）でWボトムは成立しない → パターン無効化
 if not na(pivHigh)
     if wb_st == 1 and pivBar > wb_l1_bar
-        wb_neck     := pivHigh
-        wb_neck_bar := pivBar
-        wb_st       := 2
+        if na(wb_snap_pivH1) or pivHigh <= wb_snap_pivH1
+            wb_neck     := pivHigh
+            wb_neck_bar := pivBar
+            wb_st       := 2
+        else
+            // 直前の戻り高値を越えた → 下降トレンド構造破綻、パターン無効化
+            wb_st       := 0
+            wb_l1       := na
+            wb_l1_bar   := na
+            wb_neck     := na
+            wb_neck_bar := na
     else if wb_st == 2 and pivBar > wb_l1_bar and pivHigh > wb_neck
-        wb_neck     := pivHigh
-        wb_neck_bar := pivBar
+        if pivHigh <= wb_snap_pivH1
+            wb_neck     := pivHigh
+            wb_neck_bar := pivBar
+        else
+            // ネックライン更新候補が直前の戻り高値を越えた → パターン無効化
+            wb_st       := 0
+            wb_l1       := na
+            wb_l1_bar   := na
+            wb_neck     := na
+            wb_neck_bar := na
+            wb_l2       := na
+            wb_l2_bar   := na
 
 // ══════════════════════════════════════════════════════════════════════════════
 // W トップ ステートマシン
@@ -161,14 +181,34 @@ if not na(pivHigh)
         wt_h2_bar   := na
         wt_st       := 1
 
+// ネックライン候補は「H1直前の押し安値（wt_snap_pivL1）」を割り込まないこと（HL構造維持）
+// 割った場合は下方ブレイク（BoS）でWトップは成立しない → パターン無効化
 if not na(pivLow)
     if wt_st == 1 and pivBar > wt_h1_bar
-        wt_neck     := pivLow
-        wt_neck_bar := pivBar
-        wt_st       := 2
+        if na(wt_snap_pivL1) or pivLow >= wt_snap_pivL1
+            wt_neck     := pivLow
+            wt_neck_bar := pivBar
+            wt_st       := 2
+        else
+            // 直前の押し安値を割った → 上昇トレンド構造破綻、パターン無効化
+            wt_st       := 0
+            wt_h1       := na
+            wt_h1_bar   := na
+            wt_neck     := na
+            wt_neck_bar := na
     else if wt_st == 2 and pivBar > wt_h1_bar and pivLow < wt_neck
-        wt_neck     := pivLow
-        wt_neck_bar := pivBar
+        if pivLow >= wt_snap_pivL1
+            wt_neck     := pivLow
+            wt_neck_bar := pivBar
+        else
+            // ネックライン更新候補が直前の押し安値を割った → パターン無効化
+            wt_st       := 0
+            wt_h1       := na
+            wt_h1_bar   := na
+            wt_neck     := na
+            wt_neck_bar := na
+            wt_h2       := na
+            wt_h2_bar   := na
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ピボット履歴の更新（全ステートマシン処理後）
